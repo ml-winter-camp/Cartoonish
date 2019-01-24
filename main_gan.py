@@ -11,24 +11,16 @@ from unet import UNet
 from discriminator import SimpleNet
 
 parser = argparse.ArgumentParser(description='PyTorch cycle_face')
-parser.add_argument('--real_path', default = '/home/stoneliunx/data/face/')
-parser.add_argument('--cart_path', default = '/home/stoneliunx/data/cartoon/cartoonset100k')
+parser.add_argument('--real_path', default = '/home/yylovehjr/winter-camp-pek/gan/data/face/')
+parser.add_argument('--cart_path', default = '/home/yylovehjr/winter-camp-pek/gan/data/cartoon/cartoonset100k')
 parser.add_argument('--lr', default = 0.001)
 parser.add_argument('--momentum', default = 0.01)
 parser.add_argument('--max_iter', default = 10000)
 parser.add_argument('--num_batch', default = 50)
 parser.add_argument('--batch_size', default = 32)
 parser.add_argument('--save_folder', default = 'ckpt')
-parser.add_argument('--img_size', default = 500)
+parser.add_argument('--img_size', default = 128)
 parser.add_argument('--save_freq', default = 1)
-parser.add_argument('--clsGlassesG', default = '/home/stoneliunx/Cartoonish/real_model/model/real_glasses_classification.pth')
-parser.add_argument('--clsGlassesD', default = '/home/stoneliunx/Cartoonish/cartoon_model/model_glasses/glasses.pth')
-parser.add_argument('--clsBaldG', default = '/home/stonelinux/Cartoonish/real_model/model/real_bald_classification.pth ')
-parser.add_argument('--clsBaldD', default = '/home/stonelinux/Cartoonish/cartoon_model/model_bald/bald.pth')
-parser.add_argument('--clsHairG', default = '/home/stonelinux/Cartoonish/real_model/model/real_hair_color_classification.pth')
-parser.add_argument('--clsHairD', default = '/home/stonelinux/Cartoonish/cartoon_model/model_haircolor/haircolor.pth')
-parser.add_argument('--clsMustG', default = '/home/stonelinux/Cartoonish/real_model/model/real_mustache_classification.pth')
-parser.add_argument('--clsMustD', default = '/home/stonelinux/Cartoonish/cartoon_model/model_mustache/mustache.pth')
 
 
 def main():
@@ -50,17 +42,19 @@ def main():
 
 	# Prepare Dataset
 	real_dataset = datasets.ImageFolder(args.real_path, transform = transform)
-	real_loader = DataLoader(real_dataset, batch_size=args.batch_size, shuffle=True)
+	real_loader = DataLoader(
+        real_dataset, batch_size=args.batch_size, shuffle=True)
 
 	cart_dataset = datasets.ImageFolder(args.cart_path, transform = transform)
-	cart_loader = DataLoader(cart_dataset, batch_size=args.batch_size, shuffle=True)
+	cart_loader = DataLoader(
+		cart_dataset, batch_size=args.batch_size, shuffle=True)
 
 	print('Read Dataset Done!')
 
 	G=UNet(3,3)
 	D=torchvision.models.resnet18(pretrained = True)
 	D.avgpool = nn.AvgPool2d(1, 1)
-	D.fc = nn.Linear(512 * 256, 2)
+	D.fc = nn.Linear(512 * 16, 2)
 
 	G.cuda()
 	D.cuda()
@@ -76,12 +70,6 @@ def main():
 	tb_logger = None
 
 	train(G,D,real_loader,cart_loader,optimizer_gen,optimizer_dis,args,criterion,criterion_mse,  tb_logger)
-
-
-def computeError(classifierA, classifierB, criterion, real, cart):
-	score_x = classifierA(real)
-	score_y = classifierB(cart)
-	return criterion(score_x, score_y)
 
 
 def train(G,D,real_loader,cart_loader,optimizer_gen,optimizer_dis,args,
@@ -152,22 +140,6 @@ def train(G,D,real_loader,cart_loader,optimizer_gen,optimizer_dis,args,
 			scoreG_real=criterion_mse(real_imgs, gen_imgs)
 			scoreG_real.backward()
 
-			if args.clsGlassesG is not None and args.clsGlassesD is not None:
-				scoreGlasses = computeError(torch.load(args.clsGlassesG), torch.load(args.clsGlassesD), criterion_mse, real_imgs, cart_imgs)
-				scoreGlasses.backward()
-
-			if args.clsBaldG is not None and args.clsBaldD is not None:
-				scoreBald = computeError(torch.load(args.clsBaldG), torch.load(args.clsBaldD), criterion_mse, real_imgs, cart_imgs)
-				scoreBald.backward()
-			
-			if args.clsHairG is not None and args.clsHairD is not None:
-				scoreHair = computeError(torch.load(args.clsHairG), torch.load(args.clsHairD), criterion_mse, real_imgs, cart_imgs)
-				scoreHair.backward()
-
-			if args.clsMustG is not None and args.clsMustD is not None:
-				scoreMust = computeError(torch.load(args.clsMustG), torch.load(args.clsMustD), criterion_mse, real_imgs, cart_imgs)
-				scoreMust.backward()
-
 			gen_imgs = G(real_imgs)
 			scoreG_gen = D(gen_imgs)
 			errorG_gen = criterion(scoreG_gen, true_labels)
@@ -175,6 +147,7 @@ def train(G,D,real_loader,cart_loader,optimizer_gen,optimizer_dis,args,
 
 			lossG_gen.append(errorG_gen.data.clone())
 			lossG_real.append(scoreG_real.data.clone())
+
 
 			optimizer_gen.step()
 			#print('iter:{}\tbatch:{}'.format(i, j))
